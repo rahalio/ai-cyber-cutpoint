@@ -1,0 +1,188 @@
+openapi: 3.1.0
+info:
+  title: Governance API
+  version: 0.1.0
+  description: Coverage, drift assurance, publication holds, and sealed evidence packages.
+  x-domain: gov
+  x-product-slug: 1812-00381v2
+servers:
+  - url: https://api.cutpoint.local
+security:
+  - apiKey: []
+tags:
+  - name: Assurance
+    description: Taxonomy coverage, classification decay, and publication holds
+  - name: Evidence
+    description: Sealed referral packages and custody logs
+paths:
+  /v1/assurance/markets/{marketId}/coverage:
+    get:
+      operationId: getCoverageAssessment
+      tags: [Assurance]
+      summary: Get taxonomy coverage assessment
+      description: Share of market traffic outside the active taxonomy. Recall is unmeasurable; coverage is a floor.
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: none
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            $ref: ./governance.schemas.yaml#/components/schemas/MarketId
+      responses:
+        '200':
+          description: Coverage assessment
+          content:
+            application/json:
+              schema:
+                $ref: ./governance.schemas.yaml#/components/schemas/CoverageAssessmentResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/assurance/markets/{marketId}/drift:
+    get:
+      operationId: getDriftAssessment
+      tags: [Assurance]
+      summary: Get classification drift assessment
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: none
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            $ref: ./governance.schemas.yaml#/components/schemas/MarketId
+      responses:
+        '200':
+          description: Drift assessment
+          content:
+            application/json:
+              schema:
+                $ref: ./governance.schemas.yaml#/components/schemas/DriftAssessmentResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/assurance/publication-holds:
+    get:
+      operationId: listPublicationHolds
+      tags: [Assurance]
+      summary: List active publication holds
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: PublicationHold
+      x-dynamodb:
+        entityType: "PUBLICATION_HOLD"
+        pkPatternTemplate: "PUBLICATION_HOLD#${publicationHoldId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "PUBLICATION_HOLD#${publicationHoldId}"
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Publication holds page
+          content:
+            application/json:
+              schema:
+                $ref: ./governance.schemas.yaml#/components/schemas/PublicationHoldListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/evidence/packages:
+    post:
+      operationId: sealEvidencePackage
+      tags: [Evidence]
+      summary: Seal a privileged evidence package
+      description: Privileged action. Seals adjudicated chains into a hash-manifested referral package.
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: EvidencePackage
+      x-dynamodb:
+        entityType: "EVIDENCE_PACKAGE"
+        pkPatternTemplate: "EVIDENCE_PACKAGE#${evidencePackageId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./governance.schemas.yaml#/components/schemas/EvidencePackageCreate
+      responses:
+        '201':
+          description: Evidence package sealed
+          content:
+            application/json:
+              schema:
+                $ref: ./governance.schemas.yaml#/components/schemas/EvidencePackageResponse
+        '403':
+          $ref: ./common/responses.yaml#/components/responses/Forbidden
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/evidence/packages/{packageId}:
+    get:
+      operationId: getEvidencePackage
+      tags: [Evidence]
+      summary: Get sealed evidence package with custody log
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: EvidencePackage
+      x-dynamodb:
+        entityType: "EVIDENCE_PACKAGE"
+        pkPatternTemplate: "EVIDENCE_PACKAGE#${evidencePackageId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - name: packageId
+          in: path
+          required: true
+          schema:
+            $ref: ./governance.schemas.yaml#/components/schemas/EvidencePackageId
+      responses:
+        '200':
+          description: Sealed package
+          content:
+            application/json:
+              schema:
+                $ref: ./governance.schemas.yaml#/components/schemas/EvidencePackageResponse
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth

@@ -1,0 +1,234 @@
+openapi: 3.1.0
+info:
+  title: Governance schemas
+  version: 0.1.0
+  description: Coverage, drift, publication holds, and evidence packaging.
+paths: {}
+components:
+  schemas:
+    MarketId:
+      type: string
+      pattern: '^mkt_[0-9A-HJKMNP-TV-Z]{26}$'
+    PublicationHoldId:
+      type: string
+      pattern: '^hld_[0-9A-HJKMNP-TV-Z]{26}$'
+    EvidencePackageId:
+      type: string
+      pattern: '^evd_[0-9A-HJKMNP-TV-Z]{26}$'
+
+    CoverageAssessment:
+      type: object
+      required: [marketId, assessedAt]
+      properties:
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        assessedAt:
+          type: string
+          format: date-time
+        taxonomyVersion:
+          type: string
+        outOfTaxonomyShare:
+          type: number
+          format: float
+        emergingUnnamedThemes:
+          type: array
+          items:
+            type: string
+        recallMeasurable:
+          type: boolean
+          default: false
+        coverageStatement:
+          type: string
+
+    DriftAssessment:
+      type: object
+      required: [marketId, assessedAt]
+      properties:
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        assessedAt:
+          type: string
+          format: date-time
+        holdoutWindowStart:
+          type: string
+          format: date
+        holdoutWindowEnd:
+          type: string
+          format: date
+        holdoutF1:
+          type: number
+          format: float
+        thresholdF1:
+          type: number
+          format: float
+        breached:
+          type: boolean
+        daysSinceLastRelabelling:
+          type: integer
+        recommendedAction:
+          type: string
+          enum: [none, schedule_relabelling, relabel_now, hold_publication]
+
+    PublicationHold:
+      type: object
+
+      x-dynamodb:
+        entityType: "PUBLICATION_HOLD"
+        pkPatternTemplate: "PUBLICATION_HOLD#${publicationHoldId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "PUBLICATION_HOLD#${publicationHoldId}"
+      required: [publicationHoldId, marketId, cause, appliedAt, createdAt, updatedAt]
+      properties:
+        publicationHoldId:
+          $ref: '#/components/schemas/PublicationHoldId'
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        cause:
+          type: string
+          enum: [drift_threshold_breached, taxonomy_coverage_breached, retention_expired, licence_lapsed]
+        appliedAt:
+          type: string
+          format: date-time
+        liftedAt:
+          type: string
+          format: date-time
+        detail:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CustodyEvent:
+      type: object
+      required: [at, actor, action]
+      properties:
+        at:
+          type: string
+          format: date-time
+        actor:
+          type: string
+        action:
+          type: string
+          enum: [sealed, accessed, transferred, disclosed]
+        recipient:
+          type: string
+
+    ArtefactHash:
+      type: object
+      properties:
+        artefactId:
+          type: string
+        artefactType:
+          type: string
+          enum: [post, reply, adjudication, dependency_edge]
+        hash:
+          type: string
+
+    EvidencePackageCreate:
+      type: object
+      required: [chainAdjudicationIds, purpose]
+      properties:
+        chainAdjudicationIds:
+          type: array
+          items:
+            type: string
+        purpose:
+          type: string
+          enum: [law_enforcement_referral, internal_legal, regulator_disclosure]
+        recipient:
+          type: string
+
+    EvidencePackage:
+      type: object
+
+      x-dynamodb:
+        entityType: "EVIDENCE_PACKAGE"
+        pkPatternTemplate: "EVIDENCE_PACKAGE#${evidencePackageId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      required: [evidencePackageId, purpose, sealedAt, manifestHash, createdAt, updatedAt]
+      properties:
+        evidencePackageId:
+          $ref: '#/components/schemas/EvidencePackageId'
+        purpose:
+          type: string
+          enum: [law_enforcement_referral, internal_legal, regulator_disclosure]
+        sealedAt:
+          type: string
+          format: date-time
+        sealedBy:
+          type: string
+        manifestHash:
+          type: string
+        artefactHashes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtefactHash'
+        custodyLog:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustodyEvent'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PublicationHoldListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicationHold'
+        nextCursor:
+          type: string
+
+    CoverageAssessmentResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/CoverageAssessment'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    DriftAssessmentResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/DriftAssessment'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    PublicationHoldListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/PublicationHoldListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    EvidencePackageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/EvidencePackage'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

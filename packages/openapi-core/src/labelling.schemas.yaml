@@ -1,0 +1,363 @@
+openapi: 3.1.0
+info:
+  title: Labelling schemas
+  version: 0.1.0
+  description: Taxonomy, annotation batches, and classification runs.
+paths: {}
+components:
+  schemas:
+    MarketId:
+      type: string
+      pattern: '^mkt_[0-9A-HJKMNP-TV-Z]{26}$'
+    TaxonomyVersionId:
+      type: string
+      pattern: '^tax_[0-9A-HJKMNP-TV-Z]{26}$'
+    BatchId:
+      type: string
+      pattern: '^bat_[0-9A-HJKMNP-TV-Z]{26}$'
+    ClassificationRunId:
+      type: string
+      pattern: '^run_[0-9A-HJKMNP-TV-Z]{26}$'
+
+    ProductCategory:
+      type: object
+      required: [key, label]
+      properties:
+        key:
+          type: string
+          example: hacked_server
+        label:
+          type: string
+        definition:
+          type: string
+        retired:
+          type: boolean
+          default: false
+
+    Taxonomy:
+      type: object
+      required: [marketId, activeVersion, categories]
+      properties:
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        activeVersion:
+          type: string
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductCategory'
+        outOfTaxonomyShare:
+          type: number
+          format: float
+
+    TaxonomyVersion:
+      type: object
+
+      x-dynamodb:
+        entityType: "TAXONOMY_VERSION"
+        pkPatternTemplate: "TAXONOMY_VERSION#${taxonomyVersionId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      required: [taxonomyVersionId, marketId, version, publishedAt, createdAt, updatedAt]
+      properties:
+        taxonomyVersionId:
+          $ref: '#/components/schemas/TaxonomyVersionId'
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        version:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        publishedBy:
+          type: string
+        changeSummary:
+          type: string
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductCategory'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TaxonomyVersionCreate:
+      type: object
+      required: [categories, changeSummary]
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductCategory'
+        changeSummary:
+          type: string
+
+    AnnotationBatch:
+      type: object
+
+      x-dynamodb:
+        entityType: "ANNOTATION_BATCH"
+        pkPatternTemplate: "ANNOTATION_BATCH#${batchId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "ANNOTATION_BATCH#${batchId}"
+      required: [batchId, marketId, status, targetPosts, createdAt, updatedAt]
+      properties:
+        batchId:
+          $ref: '#/components/schemas/BatchId'
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        taxonomyVersion:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, complete, abandoned]
+        targetPosts:
+          type: integer
+        labelledPosts:
+          type: integer
+        labelledReplies:
+          type: integer
+        holdoutReservedPosts:
+          type: integer
+        effortSeconds:
+          type: integer
+        budgetConsumedShare:
+          type: number
+          format: float
+        labellerIds:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AnnotationBatchCreate:
+      type: object
+      required: [marketId, targetPosts]
+      properties:
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        targetPosts:
+          type: integer
+        holdoutReservedPosts:
+          type: integer
+        labellerIds:
+          type: array
+          items:
+            type: string
+
+    PostLabel:
+      type: object
+      required: [postId, categoryKey, labellerId]
+      properties:
+        postId:
+          type: string
+        categoryKey:
+          type: string
+        labellerId:
+          type: string
+        confidence:
+          type: string
+          enum: [certain, probable, unsure]
+
+    ReplyLabel:
+      type: object
+      required: [replyId, replyType, labellerId]
+      properties:
+        replyId:
+          type: string
+        replyType:
+          type: string
+          enum: [buy, sell, endorsement, other]
+        labellerId:
+          type: string
+
+    AnnotationLabelsSubmit:
+      type: object
+      required: [postLabels, replyLabels]
+      properties:
+        postLabels:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostLabel'
+        replyLabels:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReplyLabel'
+        effortSeconds:
+          type: integer
+
+    ContestedCategory:
+      type: object
+      properties:
+        categoryKey:
+          type: string
+        disagreementRate:
+          type: number
+          format: float
+
+    LabellerAgreement:
+      type: object
+      required: [batchId]
+      properties:
+        batchId:
+          $ref: '#/components/schemas/BatchId'
+        pairwiseAgreement:
+          type: number
+          format: float
+        contestedCategories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContestedCategory'
+        labellersBelowThreshold:
+          type: array
+          items:
+            type: string
+
+    CategoryPrecision:
+      type: object
+      properties:
+        categoryKey:
+          type: string
+        precision:
+          type: number
+          format: float
+
+    ClassificationRun:
+      type: object
+
+      x-dynamodb:
+        entityType: "CLASSIFICATION_RUN"
+        pkPatternTemplate: "CLASSIFICATION_RUN#${classificationRunId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "CLASSIFICATION_RUN#${classificationRunId}"
+      required: [classificationRunId, marketId, completedAt, createdAt, updatedAt]
+      properties:
+        classificationRunId:
+          $ref: '#/components/schemas/ClassificationRunId'
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        taxonomyVersion:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+        postsClassified:
+          type: integer
+        repliesClassified:
+          type: integer
+        weightedProductPrecision:
+          type: number
+          format: float
+        weightedReplyPrecision:
+          type: number
+          format: float
+        perCategoryPrecision:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryPrecision'
+        recallMeasurable:
+          type: boolean
+          default: false
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AnnotationBatchListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnnotationBatch'
+        nextCursor:
+          type: string
+
+    ClassificationRunListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassificationRun'
+        nextCursor:
+          type: string
+
+    TaxonomyResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Taxonomy'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    TaxonomyVersionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/TaxonomyVersion'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    AnnotationBatchResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AnnotationBatch'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    AnnotationBatchListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AnnotationBatchListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    LabellerAgreementResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/LabellerAgreement'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    ClassificationRunListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ClassificationRunListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

@@ -1,0 +1,232 @@
+openapi: 3.1.0
+info:
+  title: Discovery API
+  version: 0.1.0
+  description: Chain candidates, mandatory adjudication, and dependency maps.
+  x-domain: dsc
+  x-product-slug: 1812-00381v2
+servers:
+  - url: https://api.cutpoint.local
+security:
+  - apiKey: []
+tags:
+  - name: Chains
+    description: Chain candidates and mandatory analyst adjudication
+  - name: Dependencies
+    description: Adjudicated dependency edges and market dependency maps
+paths:
+  /v1/chains/candidates:
+    get:
+      operationId: listChainCandidates
+      tags: [Chains]
+      summary: List chain candidates awaiting adjudication
+      description: Candidates are internal working material and must not be published as findings.
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: ChainCandidate
+      x-dynamodb:
+        entityType: "CHAIN_CANDIDATE"
+        pkPatternTemplate: "CHAIN_CANDIDATE#${candidateId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "CHAIN_CANDIDATE#${candidateId}"
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: marketId
+          in: query
+          schema:
+            $ref: ./discovery.schemas.yaml#/components/schemas/MarketId
+        - name: sourceCategory
+          in: query
+          schema:
+            type: string
+        - name: destinationCategory
+          in: query
+          schema:
+            type: string
+        - name: adjudicationStatus
+          in: query
+          schema:
+            type: string
+            enum: [pending, accepted, rejected, suppressed]
+      responses:
+        '200':
+          description: Chain candidates page
+          content:
+            application/json:
+              schema:
+                $ref: ./discovery.schemas.yaml#/components/schemas/ChainCandidateListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/chains/candidates/{candidateId}:
+    get:
+      operationId: getChainCandidate
+      tags: [Chains]
+      summary: Get chain candidate with evidence
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: ChainCandidate
+      x-dynamodb:
+        entityType: "CHAIN_CANDIDATE"
+        pkPatternTemplate: "CHAIN_CANDIDATE#${candidateId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - name: candidateId
+          in: path
+          required: true
+          schema:
+            $ref: ./discovery.schemas.yaml#/components/schemas/ChainCandidateId
+      responses:
+        '200':
+          description: Candidate with evidence
+          content:
+            application/json:
+              schema:
+                $ref: ./discovery.schemas.yaml#/components/schemas/ChainCandidateResponse
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/chains/candidates/{candidateId}/adjudication:
+    post:
+      operationId: adjudicateChainCandidate
+      tags: [Chains]
+      summary: Adjudicate a chain candidate
+      description: Mandatory analyst gate. Only accepted candidates become dependency edges.
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: ChainAdjudication
+      x-dynamodb:
+        entityType: "CHAIN_ADJUDICATION"
+        pkPatternTemplate: "CHAIN_ADJUDICATION#${adjudicationId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - name: candidateId
+          in: path
+          required: true
+          schema:
+            $ref: ./discovery.schemas.yaml#/components/schemas/ChainCandidateId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./discovery.schemas.yaml#/components/schemas/ChainAdjudicationCreate
+      responses:
+        '201':
+          description: Candidate adjudicated
+          content:
+            application/json:
+              schema:
+                $ref: ./discovery.schemas.yaml#/components/schemas/ChainAdjudicationResponse
+        '409':
+          $ref: ./common/responses.yaml#/components/responses/Conflict
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/dependencies/edges:
+    get:
+      operationId: listDependencyEdges
+      tags: [Dependencies]
+      summary: List adjudicated dependency edges
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: DependencyEdge
+      x-dynamodb:
+        entityType: "DEPENDENCY_EDGE"
+        pkPatternTemplate: "DEPENDENCY_EDGE#${dependencyEdgeId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "DEPENDENCY_EDGE#${dependencyEdgeId}"
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: marketId
+          in: query
+          schema:
+            $ref: ./discovery.schemas.yaml#/components/schemas/MarketId
+      responses:
+        '200':
+          description: Dependency edges page
+          content:
+            application/json:
+              schema:
+                $ref: ./discovery.schemas.yaml#/components/schemas/DependencyEdgeListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/markets/{marketId}/dependency-map:
+    get:
+      operationId: getDependencyMap
+      tags: [Dependencies]
+      summary: Get category-level dependency map
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: none
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            $ref: ./discovery.schemas.yaml#/components/schemas/MarketId
+      responses:
+        '200':
+          description: Dependency map with coverage floor
+          content:
+            application/json:
+              schema:
+                $ref: ./discovery.schemas.yaml#/components/schemas/DependencyMapResponse
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth

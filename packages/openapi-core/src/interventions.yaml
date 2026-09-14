@@ -1,0 +1,187 @@
+openapi: 3.1.0
+info:
+  title: Interventions API
+  version: 0.1.0
+  description: Control-change candidates, selection, and outcome measurement.
+  x-domain: itv
+  x-product-slug: 1812-00381v2
+servers:
+  - url: https://api.cutpoint.local
+security:
+  - apiKey: []
+tags:
+  - name: Interventions
+    description: Control-change candidates, selection, and outcome measurement
+paths:
+  /v1/interventions/candidates:
+    get:
+      operationId: listInterventionCandidates
+      tags: [Interventions]
+      summary: List control-change candidates ranked by leverage
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: InterventionCandidate
+      x-dynamodb:
+        entityType: "INTERVENTION_CANDIDATE"
+        pkPatternTemplate: "INTERVENTION_CANDIDATE#${interventionCandidateId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "INTERVENTION_CANDIDATE#${interventionCandidateId}"
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: marketId
+          in: query
+          schema:
+            $ref: ./interventions.schemas.yaml#/components/schemas/MarketId
+        - name: harmMetric
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Intervention candidates page
+          content:
+            application/json:
+              schema:
+                $ref: ./interventions.schemas.yaml#/components/schemas/InterventionCandidateListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/interventions:
+    get:
+      operationId: listInterventions
+      tags: [Interventions]
+      summary: List interventions including declined and failed
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: Intervention
+      x-dynamodb:
+        entityType: "INTERVENTION"
+        pkPatternTemplate: "INTERVENTION#${interventionId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [selected, declined, implemented, measured, failed]
+      responses:
+        '200':
+          description: Interventions page
+          content:
+            application/json:
+              schema:
+                $ref: ./interventions.schemas.yaml#/components/schemas/InterventionListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: selectIntervention
+      tags: [Interventions]
+      summary: Select or decline a control-change candidate
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: Intervention
+      x-dynamodb:
+        entityType: "INTERVENTION"
+        pkPatternTemplate: "INTERVENTION#${interventionId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./interventions.schemas.yaml#/components/schemas/InterventionCreate
+      responses:
+        '201':
+          description: Intervention recorded
+          content:
+            application/json:
+              schema:
+                $ref: ./interventions.schemas.yaml#/components/schemas/InterventionResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/interventions/{interventionId}/outcome:
+    post:
+      operationId: recordInterventionOutcome
+      tags: [Interventions]
+      summary: Record outcome measurement against baseline
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: OutcomeMeasurement
+      x-dynamodb:
+        entityType: "OUTCOME_MEASUREMENT"
+        pkPatternTemplate: "OUTCOME_MEASUREMENT#${outcomeMeasurementId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - name: interventionId
+          in: path
+          required: true
+          schema:
+            $ref: ./interventions.schemas.yaml#/components/schemas/InterventionId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./interventions.schemas.yaml#/components/schemas/OutcomeMeasurementCreate
+      responses:
+        '201':
+          description: Outcome measured
+          content:
+            application/json:
+              schema:
+                $ref: ./interventions.schemas.yaml#/components/schemas/OutcomeMeasurementResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth

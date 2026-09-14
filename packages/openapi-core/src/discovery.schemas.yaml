@@ -1,0 +1,344 @@
+openapi: 3.1.0
+info:
+  title: Discovery schemas
+  version: 0.1.0
+  description: Chain candidates, adjudications, and dependency maps.
+paths: {}
+components:
+  schemas:
+    MarketId:
+      type: string
+      pattern: '^mkt_[0-9A-HJKMNP-TV-Z]{26}$'
+    ChainCandidateId:
+      type: string
+      pattern: '^chn_[0-9A-HJKMNP-TV-Z]{26}$'
+    AdjudicationId:
+      type: string
+      pattern: '^adj_[0-9A-HJKMNP-TV-Z]{26}$'
+    DependencyEdgeId:
+      type: string
+      pattern: '^dep_[0-9A-HJKMNP-TV-Z]{26}$'
+    TransactionId:
+      type: string
+      pattern: '^txn_[0-9A-HJKMNP-TV-Z]{26}$'
+    PostId:
+      type: string
+      pattern: '^pst_[0-9A-HJKMNP-TV-Z]{26}$'
+    ReplyId:
+      type: string
+      pattern: '^rpl_[0-9A-HJKMNP-TV-Z]{26}$'
+
+    Actor:
+      type: object
+      required: [pseudonymousKey, marketId]
+      properties:
+        pseudonymousKey:
+          type: string
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        edgeCount:
+          type: integer
+
+    Post:
+      type: object
+      required: [postId, marketId, postedAt]
+      properties:
+        postId:
+          $ref: '#/components/schemas/PostId'
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        threadId:
+          type: string
+        authorKey:
+          type: string
+        postedAt:
+          type: string
+          format: date-time
+        excerpt:
+          type: string
+
+    Reply:
+      type: object
+      required: [replyId, postId, repliedAt]
+      properties:
+        replyId:
+          $ref: '#/components/schemas/ReplyId'
+        postId:
+          $ref: '#/components/schemas/PostId'
+        authorKey:
+          type: string
+        repliedAt:
+          type: string
+          format: date-time
+        excerpt:
+          type: string
+        quoteRemoved:
+          type: boolean
+
+    Transaction:
+      type: object
+      required: [transactionId, marketId, sellerKey, buyerKey, categoryKey, occurredAt]
+      properties:
+        transactionId:
+          $ref: '#/components/schemas/TransactionId'
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        sellerKey:
+          type: string
+        buyerKey:
+          type: string
+        categoryKey:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        evidenceReplyId:
+          type: string
+
+    ChainCandidate:
+      type: object
+
+      x-dynamodb:
+        entityType: "CHAIN_CANDIDATE"
+        pkPatternTemplate: "CHAIN_CANDIDATE#${candidateId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "CHAIN_CANDIDATE#${candidateId}"
+      required: [candidateId, marketId, sourceCategory, destinationCategory, adjudicationStatus, createdAt, updatedAt]
+      properties:
+        candidateId:
+          $ref: '#/components/schemas/ChainCandidateId'
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        taxonomyVersion:
+          type: string
+        sourceCategory:
+          type: string
+        destinationCategory:
+          type: string
+        linkingActorKey:
+          type: string
+        purchaseTransactionId:
+          type: string
+        onwardSaleTransactionId:
+          type: string
+        attenuatedWeight:
+          type: number
+          format: float
+        elapsedDaysBetweenLegs:
+          type: integer
+        adjudicationStatus:
+          type: string
+          enum: [pending, accepted, rejected, suppressed]
+        suppressionReason:
+          type: string
+          enum: [endorsement_reply, quote_artefact, duplicate_listing]
+        linkingActor:
+          $ref: '#/components/schemas/Actor'
+        purchase:
+          $ref: '#/components/schemas/Transaction'
+        onwardSale:
+          $ref: '#/components/schemas/Transaction'
+        sourcePost:
+          $ref: '#/components/schemas/Post'
+        buyEvidence:
+          $ref: '#/components/schemas/Reply'
+        onwardPost:
+          $ref: '#/components/schemas/Post'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ChainAdjudicationCreate:
+      type: object
+      required: [outcome]
+      properties:
+        outcome:
+          type: string
+          enum: [related, resell, unrelated, lack_of_product, lack_of_purchase]
+        rationale:
+          type: string
+        harmMetric:
+          type: string
+
+    ChainAdjudication:
+      type: object
+
+      x-dynamodb:
+        entityType: "CHAIN_ADJUDICATION"
+        pkPatternTemplate: "CHAIN_ADJUDICATION#${adjudicationId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      required: [adjudicationId, candidateId, outcome, adjudicatedBy, adjudicatedAt, createdAt, updatedAt]
+      properties:
+        adjudicationId:
+          $ref: '#/components/schemas/AdjudicationId'
+        candidateId:
+          $ref: '#/components/schemas/ChainCandidateId'
+        outcome:
+          type: string
+          enum: [related, resell, unrelated, lack_of_product, lack_of_purchase]
+        rationale:
+          type: string
+        adjudicatedBy:
+          type: string
+        adjudicatedAt:
+          type: string
+          format: date-time
+        producedDependencyEdgeId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DependencyEdge:
+      type: object
+
+      x-dynamodb:
+        entityType: "DEPENDENCY_EDGE"
+        pkPatternTemplate: "DEPENDENCY_EDGE#${dependencyEdgeId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "DEPENDENCY_EDGE#${dependencyEdgeId}"
+      required: [dependencyEdgeId, marketId, sourceCategory, destinationCategory, createdAt, updatedAt]
+      properties:
+        dependencyEdgeId:
+          $ref: '#/components/schemas/DependencyEdgeId'
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        sourceCategory:
+          type: string
+        destinationCategory:
+          type: string
+        adjudicatedChainCount:
+          type: integer
+        attenuatedWeight:
+          type: number
+          format: float
+        firstObservedAt:
+          type: string
+          format: date-time
+        lastObservedAt:
+          type: string
+          format: date-time
+        notableAnnotation:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DependencyMap:
+      type: object
+      required: [marketId]
+      properties:
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        taxonomyVersion:
+          type: string
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyEdge'
+        hubCategories:
+          type: array
+          items:
+            type: string
+        coverageFloorShare:
+          type: number
+          format: float
+        coverageIsFloor:
+          type: boolean
+          default: true
+
+    ChainCandidateListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChainCandidate'
+        nextCursor:
+          type: string
+
+    DependencyEdgeListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyEdge'
+        nextCursor:
+          type: string
+
+    ChainCandidateResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ChainCandidate'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    ChainCandidateListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ChainCandidateListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    ChainAdjudicationResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ChainAdjudication'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    DependencyEdgeListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/DependencyEdgeListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    DependencyMapResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/DependencyMap'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

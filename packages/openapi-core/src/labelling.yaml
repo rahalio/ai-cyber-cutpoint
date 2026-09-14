@@ -1,0 +1,289 @@
+openapi: 3.1.0
+info:
+  title: Labelling API
+  version: 0.1.0
+  description: Analyst-owned taxonomy, annotation workspace, and classification runs.
+  x-domain: lbl
+  x-product-slug: 1812-00381v2
+servers:
+  - url: https://api.cutpoint.local
+security:
+  - apiKey: []
+tags:
+  - name: Taxonomy
+    description: Analyst-owned product category taxonomies and versions
+  - name: Annotation
+    description: Labelling batches, budget consumption, and labeller agreement
+paths:
+  /v1/markets/{marketId}/taxonomy:
+    get:
+      operationId: getTaxonomy
+      tags: [Taxonomy]
+      summary: Get active taxonomy for a market
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: Taxonomy
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            $ref: ./labelling.schemas.yaml#/components/schemas/MarketId
+      responses:
+        '200':
+          description: Active taxonomy
+          content:
+            application/json:
+              schema:
+                $ref: ./labelling.schemas.yaml#/components/schemas/TaxonomyResponse
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/markets/{marketId}/taxonomy/versions:
+    post:
+      operationId: publishTaxonomyVersion
+      tags: [Taxonomy]
+      summary: Publish a new taxonomy version
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: TaxonomyVersion
+      x-dynamodb:
+        entityType: "TAXONOMY_VERSION"
+        pkPatternTemplate: "TAXONOMY_VERSION#${taxonomyVersionId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            $ref: ./labelling.schemas.yaml#/components/schemas/MarketId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./labelling.schemas.yaml#/components/schemas/TaxonomyVersionCreate
+      responses:
+        '201':
+          description: Taxonomy version published
+          content:
+            application/json:
+              schema:
+                $ref: ./labelling.schemas.yaml#/components/schemas/TaxonomyVersionResponse
+        '409':
+          $ref: ./common/responses.yaml#/components/responses/Conflict
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/annotation/batches:
+    get:
+      operationId: listAnnotationBatches
+      tags: [Annotation]
+      summary: List annotation batches
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: AnnotationBatch
+      x-dynamodb:
+        entityType: "ANNOTATION_BATCH"
+        pkPatternTemplate: "ANNOTATION_BATCH#${batchId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "ANNOTATION_BATCH#${batchId}"
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: marketId
+          in: query
+          schema:
+            $ref: ./labelling.schemas.yaml#/components/schemas/MarketId
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, complete, abandoned]
+      responses:
+        '200':
+          description: Annotation batches page
+          content:
+            application/json:
+              schema:
+                $ref: ./labelling.schemas.yaml#/components/schemas/AnnotationBatchListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: createAnnotationBatch
+      tags: [Annotation]
+      summary: Create annotation batch with reserved holdout
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: AnnotationBatch
+      x-dynamodb:
+        entityType: "ANNOTATION_BATCH"
+        pkPatternTemplate: "ANNOTATION_BATCH#${batchId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "ANNOTATION_BATCH#${batchId}"
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./labelling.schemas.yaml#/components/schemas/AnnotationBatchCreate
+      responses:
+        '201':
+          description: Batch created
+          content:
+            application/json:
+              schema:
+                $ref: ./labelling.schemas.yaml#/components/schemas/AnnotationBatchResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/annotation/batches/{batchId}/labels:
+    post:
+      operationId: submitAnnotationLabels
+      tags: [Annotation]
+      summary: Submit labels and record effort against budget
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: AnnotationBatch
+      x-dynamodb:
+        entityType: "ANNOTATION_BATCH"
+        pkPatternTemplate: "ANNOTATION_BATCH#${batchId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "ANNOTATION_BATCH#${batchId}"
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            $ref: ./labelling.schemas.yaml#/components/schemas/BatchId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./labelling.schemas.yaml#/components/schemas/AnnotationLabelsSubmit
+      responses:
+        '202':
+          description: Labels accepted
+          content:
+            application/json:
+              schema:
+                $ref: ./labelling.schemas.yaml#/components/schemas/AnnotationBatchResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/annotation/batches/{batchId}/agreement:
+    get:
+      operationId: getLabellerAgreement
+      tags: [Annotation]
+      summary: Inter-labeller agreement for a batch
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: none
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            $ref: ./labelling.schemas.yaml#/components/schemas/BatchId
+      responses:
+        '200':
+          description: Labeller agreement
+          content:
+            application/json:
+              schema:
+                $ref: ./labelling.schemas.yaml#/components/schemas/LabellerAgreementResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/classification-runs:
+    get:
+      operationId: listClassificationRuns
+      tags: [Annotation]
+      summary: List classification runs with precision metrics
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: ClassificationRun
+      x-dynamodb:
+        entityType: "CLASSIFICATION_RUN"
+        pkPatternTemplate: "CLASSIFICATION_RUN#${classificationRunId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "CLASSIFICATION_RUN#${classificationRunId}"
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: marketId
+          in: query
+          schema:
+            $ref: ./labelling.schemas.yaml#/components/schemas/MarketId
+      responses:
+        '200':
+          description: Classification runs page
+          content:
+            application/json:
+              schema:
+                $ref: ./labelling.schemas.yaml#/components/schemas/ClassificationRunListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth

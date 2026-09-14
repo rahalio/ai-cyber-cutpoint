@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Cutpoint: graphite workbench, trust teal, cut cobalt, risk rust */
+  --color-ink: #1a2332;
+  --color-ink-soft: #2a3548;
+  --color-ink-muted: #5b677a;
+  --color-trust: #2a6f7a;
+  --color-trust-soft: #3d8a96;
+  --color-trust-faint: rgba(42, 111, 122, 0.12);
+  --color-risk: #8b3a3a;
+  --color-risk-elevated: #c45c26;
+  --color-cut: #2c4a7c;
+  --color-cut-soft: #3d5f99;
+  --color-surface: #f4f5f7;
+  --color-surface-raised: #ffffff;
+  --color-surface-sunken: #e8eaee;
+  --color-surface-canvas: #0f1419;
+  --color-status-info: #2a6f7a;
+  --color-status-watch: #c48a2a;
+  --color-status-fail: #8b3a3a;
+  --color-status-ok: #2a6f7a;
+  --color-status-candidate: #5b677a;
+  --color-status-held: #5b4b8a;
+  --shadow-panel: 0 1px 0 rgba(26, 35, 50, 0.04), 0 4px 16px rgba(26, 35, 50, 0.05);
+}
+
+html.dark {
+  --color-ink: #e8ecf2;
+  --color-ink-soft: #c5ccd8;
+  --color-ink-muted: #8b95a8;
+  --color-trust: #4aa0ad;
+  --color-trust-soft: #6bb8c3;
+  --color-trust-faint: rgba(74, 160, 173, 0.16);
+  --color-risk: #e07a6a;
+  --color-risk-elevated: #e8955a;
+  --color-cut: #6b8ec4;
+  --color-cut-soft: #8aa6d4;
+  --color-surface: #0f1419;
+  --color-surface-raised: #171c24;
+  --color-surface-sunken: #1e2530;
+  --color-surface-canvas: #0b0f14;
+  --color-status-info: #4aa0ad;
+  --color-status-watch: #e8a317;
+  --color-status-fail: #e07a6a;
+  --color-status-ok: #4aa0ad;
+  --color-status-candidate: #8b95a8;
+  --color-status-held: #9b8bc4;
+  --shadow-panel: 0 1px 0 rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+/* Side nav sits on canvas — force light text when light theme */
+aside {
+  color: #e8ecf2;
+}
+
+aside a {
+  color: inherit;
+}

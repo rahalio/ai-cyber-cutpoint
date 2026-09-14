@@ -1,0 +1,266 @@
+openapi: 3.1.0
+info:
+  title: Interventions schemas
+  version: 0.1.0
+  description: Control-change candidates, selection, and outcome measurement.
+paths: {}
+components:
+  schemas:
+    MarketId:
+      type: string
+      pattern: '^mkt_[0-9A-HJKMNP-TV-Z]{26}$'
+    InterventionCandidateId:
+      type: string
+      pattern: '^icd_[0-9A-HJKMNP-TV-Z]{26}$'
+    InterventionId:
+      type: string
+      pattern: '^int_[0-9A-HJKMNP-TV-Z]{26}$'
+    OutcomeMeasurementId:
+      type: string
+      pattern: '^out_[0-9A-HJKMNP-TV-Z]{26}$'
+
+    HarmBaseline:
+      type: object
+      required: [harmMetric, value, windowStart, windowEnd]
+      properties:
+        harmMetric:
+          type: string
+        value:
+          type: number
+          format: double
+        unit:
+          type: string
+          example: accounts_per_month
+        windowStart:
+          type: string
+          format: date
+        windowEnd:
+          type: string
+          format: date
+        sourceSystem:
+          type: string
+
+    InterventionCandidate:
+      type: object
+
+      x-dynamodb:
+        entityType: "INTERVENTION_CANDIDATE"
+        pkPatternTemplate: "INTERVENTION_CANDIDATE#${interventionCandidateId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "INTERVENTION_CANDIDATE#${interventionCandidateId}"
+      required: [interventionCandidateId, marketId, controlChange, severedEdgeId, createdAt, updatedAt]
+      properties:
+        interventionCandidateId:
+          $ref: '#/components/schemas/InterventionCandidateId'
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        severedEdgeId:
+          type: string
+        controlChange:
+          type: string
+        controlDomain:
+          type: string
+          enum: [authentication, account_recovery, rate_limiting, payment_channel, listing_policy, carrier_process]
+        severanceLeverage:
+          type: number
+          format: float
+        estimatedHarmSevered:
+          type: number
+          format: double
+        harmMetric:
+          type: string
+        implementationDifficulty:
+          type: string
+          enum: [low, medium, high]
+        supportingChainCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Intervention:
+      type: object
+
+      x-dynamodb:
+        entityType: "INTERVENTION"
+        pkPatternTemplate: "INTERVENTION#${interventionId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      required: [interventionId, candidateId, status, createdAt, updatedAt]
+      properties:
+        interventionId:
+          $ref: '#/components/schemas/InterventionId'
+        candidateId:
+          $ref: '#/components/schemas/InterventionCandidateId'
+        status:
+          type: string
+          enum: [selected, declined, implemented, measured, failed]
+        declineReason:
+          type: string
+        ownerTeam:
+          type: string
+        changeRecordReference:
+          type: string
+        hypothesis:
+          type: string
+        baseline:
+          $ref: '#/components/schemas/HarmBaseline'
+        measurementDueAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    InterventionCreate:
+      type: object
+      required: [candidateId, decision]
+      properties:
+        candidateId:
+          $ref: '#/components/schemas/InterventionCandidateId'
+        decision:
+          type: string
+          enum: [select, decline]
+        declineReason:
+          type: string
+        ownerTeam:
+          type: string
+        hypothesis:
+          type: string
+        measurementWindowDays:
+          type: integer
+          default: 90
+
+    OutcomeMeasurementCreate:
+      type: object
+      required: [harmMetric, value, windowStart, windowEnd]
+      properties:
+        harmMetric:
+          type: string
+        value:
+          type: number
+          format: double
+        windowStart:
+          type: string
+          format: date
+        windowEnd:
+          type: string
+          format: date
+        substitutionObserved:
+          type: boolean
+        notes:
+          type: string
+
+    OutcomeMeasurement:
+      type: object
+
+      x-dynamodb:
+        entityType: "OUTCOME_MEASUREMENT"
+        pkPatternTemplate: "OUTCOME_MEASUREMENT#${outcomeMeasurementId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      required: [outcomeMeasurementId, interventionId, harmMetric, value, createdAt, updatedAt]
+      properties:
+        outcomeMeasurementId:
+          $ref: '#/components/schemas/OutcomeMeasurementId'
+        interventionId:
+          $ref: '#/components/schemas/InterventionId'
+        harmMetric:
+          type: string
+        value:
+          type: number
+          format: double
+        baselineValue:
+          type: number
+          format: double
+        harmSevered:
+          type: number
+          format: double
+        movedTargetMetric:
+          type: boolean
+        substitutionObserved:
+          type: boolean
+        measuredAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    InterventionCandidateListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/InterventionCandidate'
+        nextCursor:
+          type: string
+
+    InterventionListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Intervention'
+        nextCursor:
+          type: string
+
+    InterventionCandidateListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/InterventionCandidateListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    InterventionListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/InterventionListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    InterventionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Intervention'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    OutcomeMeasurementResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/OutcomeMeasurement'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

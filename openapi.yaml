@@ -1,0 +1,1725 @@
+openapi: 3.0.3
+info:
+  title: Cutpoint
+  version: 0.1.0
+  description: >-
+    Criminal-market disruption planning. Cutpoint discovers dependency edges between
+    products traded in underground markets, requires analyst adjudication before any
+    edge becomes a finding, scores which defender-side control change severs the most
+    downstream harm, and measures the result against the customer's own loss metrics.
+  x-product-slug: ai-cyber-cutpoint
+  x-source: ai-in-cyber/1812.00381v2/
+servers:
+  - url: https://api.example.com
+tags:
+  - name: Markets
+    description: Monitored markets, licensed corpora, and source governance
+  - name: Taxonomy
+    description: Analyst-owned product category taxonomies and versions
+  - name: Annotation
+    description: Labelling batches, budget consumption, and labeller agreement
+  - name: Chains
+    description: Chain candidates and mandatory analyst adjudication
+  - name: Dependencies
+    description: Adjudicated dependency edges and market dependency maps
+  - name: Interventions
+    description: Control-change candidates, selection, and outcome measurement
+  - name: Assurance
+    description: Taxonomy coverage, classification decay, and publication holds
+  - name: Evidence
+    description: Sealed referral packages and custody logs
+paths:
+  /v1/markets:
+    get:
+      operationId: listMarkets
+      tags: [Markets]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: language
+          in: query
+          schema:
+            type: string
+            example: ru
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [onboarding, labelling, active, held, exited]
+      responses:
+        "200":
+          description: Monitored markets page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeMarket"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: registerMarket
+      tags: [Markets]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarketCreate"
+      responses:
+        "201":
+          description: Market registered with an onboarding labelling budget
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeMarket"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /v1/markets/{marketId}:
+    parameters:
+      - $ref: "#/components/parameters/MarketId"
+    get:
+      operationId: getMarket
+      tags: [Markets]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Market with onboarding budget consumption and publication state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeMarket"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/markets/{marketId}/corpora:
+    parameters:
+      - $ref: "#/components/parameters/MarketId"
+    get:
+      operationId: listCorpora
+      tags: [Markets]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Corpora page with lawful basis and retention expiry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeCorpus"
+    post:
+      operationId: ingestCorpus
+      tags: [Markets]
+      description: >-
+        Ingest a licensed corpus. Rejected unless lawful basis, licence terms, and a
+        retention window are supplied, and unless pseudonymisation is requested.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CorpusIngest"
+      responses:
+        "202":
+          description: Corpus accepted for pseudonymised intake
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeCorpus"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /v1/markets/{marketId}/taxonomy:
+    parameters:
+      - $ref: "#/components/parameters/MarketId"
+    get:
+      operationId: getTaxonomy
+      tags: [Taxonomy]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Active taxonomy for the market
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeTaxonomy"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/markets/{marketId}/taxonomy/versions:
+    parameters:
+      - $ref: "#/components/parameters/MarketId"
+    post:
+      operationId: publishTaxonomyVersion
+      tags: [Taxonomy]
+      description: >-
+        Publish a new taxonomy version. Existing adjudicated chains remain bound to the
+        version under which they were reviewed.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaxonomyVersionCreate"
+      responses:
+        "201":
+          description: Taxonomy version published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeTaxonomyVersion"
+        "409":
+          description: A labelling batch is open against the current version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/annotation/batches:
+    get:
+      operationId: listAnnotationBatches
+      tags: [Annotation]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: marketId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, complete, abandoned]
+      responses:
+        "200":
+          description: Annotation batches page with effort against budget
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeAnnotationBatch"
+    post:
+      operationId: createAnnotationBatch
+      tags: [Annotation]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnotationBatchCreate"
+      responses:
+        "201":
+          description: Batch created with reserved holdout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeAnnotationBatch"
+  /v1/annotation/batches/{batchId}/labels:
+    parameters:
+      - $ref: "#/components/parameters/BatchId"
+    post:
+      operationId: submitAnnotationLabels
+      tags: [Annotation]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [postLabels, replyLabels]
+              properties:
+                postLabels:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PostLabel"
+                replyLabels:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ReplyLabel"
+                effortSeconds:
+                  type: integer
+      responses:
+        "202":
+          description: Labels accepted and effort recorded against budget
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeAnnotationBatch"
+  /v1/annotation/batches/{batchId}/agreement:
+    parameters:
+      - $ref: "#/components/parameters/BatchId"
+    get:
+      operationId: getLabellerAgreement
+      tags: [Annotation]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Inter-labeller agreement with contested categories
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeLabellerAgreement"
+  /v1/classification-runs:
+    get:
+      operationId: listClassificationRuns
+      tags: [Annotation]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: marketId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Classification runs with per-category precision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeClassificationRun"
+  /v1/chains/candidates:
+    get:
+      operationId: listChainCandidates
+      tags: [Chains]
+      description: >-
+        Candidate chains awaiting adjudication. Candidates are internal working material
+        and must not be published as findings.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: marketId
+          in: query
+          schema:
+            type: string
+        - name: sourceCategory
+          in: query
+          schema:
+            type: string
+            example: hack_for_hire
+        - name: destinationCategory
+          in: query
+          schema:
+            type: string
+            example: account
+        - name: adjudicationStatus
+          in: query
+          schema:
+            type: string
+            enum: [pending, accepted, rejected, suppressed]
+      responses:
+        "200":
+          description: Chain candidates page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeChainCandidate"
+  /v1/chains/candidates/{candidateId}:
+    parameters:
+      - $ref: "#/components/parameters/CandidateId"
+    get:
+      operationId: getChainCandidate
+      tags: [Chains]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Candidate with source post, transaction evidence, and onward sale
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeChainCandidate"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/chains/candidates/{candidateId}/adjudication:
+    parameters:
+      - $ref: "#/components/parameters/CandidateId"
+    post:
+      operationId: adjudicateChainCandidate
+      tags: [Chains]
+      description: >-
+        Mandatory analyst gate. Only accepted candidates become dependency edges.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChainAdjudicationCreate"
+      responses:
+        "201":
+          description: Candidate adjudicated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeChainAdjudication"
+        "409":
+          description: Candidate already adjudicated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/dependencies/edges:
+    get:
+      operationId: listDependencyEdges
+      tags: [Dependencies]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: marketId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Adjudicated dependency edges with attenuated weights
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeDependencyEdge"
+  /v1/markets/{marketId}/dependency-map:
+    parameters:
+      - $ref: "#/components/parameters/MarketId"
+    get:
+      operationId: getDependencyMap
+      tags: [Dependencies]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Category-level dependency map with declared coverage floor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeDependencyMap"
+        "423":
+          description: Publication held for this market
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/interventions/candidates:
+    get:
+      operationId: listInterventionCandidates
+      tags: [Interventions]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: marketId
+          in: query
+          schema:
+            type: string
+        - name: harmMetric
+          in: query
+          schema:
+            type: string
+            example: account_takeovers_per_month
+      responses:
+        "200":
+          description: Control-change candidates ranked by severance leverage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeInterventionCandidate"
+  /v1/interventions:
+    get:
+      operationId: listInterventions
+      tags: [Interventions]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [selected, declined, implemented, measured, failed]
+      responses:
+        "200":
+          description: Interventions page including declined and failed records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeIntervention"
+    post:
+      operationId: selectIntervention
+      tags: [Interventions]
+      description: >-
+        Select or decline a control-change candidate. Selection captures a harm baseline.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InterventionCreate"
+      responses:
+        "201":
+          description: Intervention recorded with baseline
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeIntervention"
+  /v1/interventions/{interventionId}/outcome:
+    parameters:
+      - $ref: "#/components/parameters/InterventionId"
+    post:
+      operationId: recordInterventionOutcome
+      tags: [Interventions]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutcomeMeasurementCreate"
+      responses:
+        "201":
+          description: Outcome measured against baseline
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeOutcomeMeasurement"
+  /v1/assurance/markets/{marketId}/coverage:
+    parameters:
+      - $ref: "#/components/parameters/MarketId"
+    get:
+      operationId: getCoverageAssessment
+      tags: [Assurance]
+      description: >-
+        Share of market traffic falling outside the active taxonomy. Recall is reported
+        as unmeasurable and coverage as a floor.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Coverage assessment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeCoverageAssessment"
+  /v1/assurance/markets/{marketId}/drift:
+    parameters:
+      - $ref: "#/components/parameters/MarketId"
+    get:
+      operationId: getDriftAssessment
+      tags: [Assurance]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Classification decay against a recent holdout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeDriftAssessment"
+  /v1/assurance/publication-holds:
+    get:
+      operationId: listPublicationHolds
+      tags: [Assurance]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Active publication holds and their causes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopePublicationHold"
+  /v1/evidence/packages:
+    post:
+      operationId: sealEvidencePackage
+      tags: [Evidence]
+      description: >-
+        Privileged action. Seals adjudicated chains and their source artefacts into a
+        hash-manifested referral package and opens a custody log.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvidencePackageCreate"
+      responses:
+        "201":
+          description: Evidence package sealed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeEvidencePackage"
+        "403":
+          description: Caller lacks the evidence privilege
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/evidence/packages/{packageId}:
+    parameters:
+      - $ref: "#/components/parameters/PackageId"
+    get:
+      operationId: getEvidencePackage
+      tags: [Evidence]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Sealed package with hash manifest and custody log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeEvidencePackage"
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    MarketId:
+      name: marketId
+      in: path
+      required: true
+      schema:
+        type: string
+    BatchId:
+      name: batchId
+      in: path
+      required: true
+      schema:
+        type: string
+    CandidateId:
+      name: candidateId
+      in: path
+      required: true
+      schema:
+        type: string
+    InterventionId:
+      name: interventionId
+      in: path
+      required: true
+      schema:
+        type: string
+    PackageId:
+      name: packageId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    UnprocessableEntity:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    ResponseMeta:
+      type: object
+      required: [requestId, timestamp]
+      properties:
+        requestId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+    Market:
+      type: object
+      required: [id, name, language, status]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        language:
+          type: string
+          description: Primary forum language, used to route fluent labellers
+        status:
+          type: string
+          enum: [onboarding, labelling, active, held, exited]
+        onboardingLabelBudgetPosts:
+          type: integer
+          description: Committed labelling budget for this market
+          example: 8500
+        labelledPosts:
+          type: integer
+        annotationEffortSeconds:
+          type: integer
+        activeTaxonomyVersion:
+          type: string
+        publicationHeld:
+          type: boolean
+        firstAdjudicatedChainAt:
+          type: string
+          format: date-time
+    MarketCreate:
+      type: object
+      required: [name, language, onboardingLabelBudgetPosts]
+      properties:
+        name:
+          type: string
+        language:
+          type: string
+        onboardingLabelBudgetPosts:
+          type: integer
+          minimum: 1000
+        driftThresholdF1:
+          type: number
+          format: float
+          description: Publication is held when holdout F1 falls below this value
+    SourceLicence:
+      type: object
+      required: [lawfulBasis, licenceTerms]
+      properties:
+        lawfulBasis:
+          type: string
+          enum: [public_posting_scrape, commercial_agreement, research_agreement, law_enforcement_disclosure]
+        licenceTerms:
+          type: string
+        redistributionPermitted:
+          type: boolean
+        publicIndexingPermitted:
+          type: boolean
+          default: false
+    RetentionPolicy:
+      type: object
+      required: [rawRetentionDays]
+      properties:
+        rawRetentionDays:
+          type: integer
+          description: Retention for raw posts and replies
+        derivedRetentionDays:
+          type: integer
+          description: Retention for pseudonymised labels, adjudications, and edges
+        purgeOnExpiry:
+          type: boolean
+          default: true
+    Corpus:
+      type: object
+      required: [id, marketId, status]
+      properties:
+        id:
+          type: string
+        marketId:
+          type: string
+        status:
+          type: string
+          enum: [accepted, pseudonymising, available, expired, purged]
+        threadCount:
+          type: integer
+        replyCount:
+          type: integer
+        uniqueActorCount:
+          type: integer
+        coverageStart:
+          type: string
+          format: date
+        coverageEnd:
+          type: string
+          format: date
+        licence:
+          $ref: "#/components/schemas/SourceLicence"
+        retention:
+          $ref: "#/components/schemas/RetentionPolicy"
+        retentionExpiresAt:
+          type: string
+          format: date-time
+    CorpusIngest:
+      type: object
+      required: [licence, retention, payloadReference]
+      properties:
+        payloadReference:
+          type: string
+          description: Opaque handle to the licensed archive, never inline content
+        licence:
+          $ref: "#/components/schemas/SourceLicence"
+        retention:
+          $ref: "#/components/schemas/RetentionPolicy"
+        pseudonymiseActors:
+          type: boolean
+          default: true
+        coverageStart:
+          type: string
+          format: date
+        coverageEnd:
+          type: string
+          format: date
+    Actor:
+      type: object
+      required: [pseudonymousKey, marketId]
+      properties:
+        pseudonymousKey:
+          type: string
+          description: Stable per-market pseudonym; no external identity enrichment
+        marketId:
+          type: string
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        edgeCount:
+          type: integer
+          description: Used to compute attenuation weight of one over edge count
+    Post:
+      type: object
+      required: [id, marketId, postedAt]
+      properties:
+        id:
+          type: string
+        marketId:
+          type: string
+        threadId:
+          type: string
+        authorKey:
+          type: string
+        postedAt:
+          type: string
+          format: date-time
+        excerpt:
+          type: string
+          description: Redacted excerpt for adjudication display only
+    Reply:
+      type: object
+      required: [id, postId, repliedAt]
+      properties:
+        id:
+          type: string
+        postId:
+          type: string
+        authorKey:
+          type: string
+        repliedAt:
+          type: string
+          format: date-time
+        excerpt:
+          type: string
+        quoteRemoved:
+          type: boolean
+    ProductCategory:
+      type: object
+      required: [key, label]
+      properties:
+        key:
+          type: string
+          example: hacked_server
+        label:
+          type: string
+        definition:
+          type: string
+        retired:
+          type: boolean
+          default: false
+    Taxonomy:
+      type: object
+      required: [marketId, activeVersion, categories]
+      properties:
+        marketId:
+          type: string
+        activeVersion:
+          type: string
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductCategory"
+        outOfTaxonomyShare:
+          type: number
+          format: float
+          description: Share of classified posts falling outside named categories
+    TaxonomyVersion:
+      type: object
+      required: [id, marketId, version, publishedAt]
+      properties:
+        id:
+          type: string
+        marketId:
+          type: string
+        version:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        publishedBy:
+          type: string
+        changeSummary:
+          type: string
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductCategory"
+    TaxonomyVersionCreate:
+      type: object
+      required: [categories, changeSummary]
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductCategory"
+        changeSummary:
+          type: string
+    AnnotationBatch:
+      type: object
+      required: [id, marketId, status, targetPosts]
+      properties:
+        id:
+          type: string
+        marketId:
+          type: string
+        taxonomyVersion:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, complete, abandoned]
+        targetPosts:
+          type: integer
+        labelledPosts:
+          type: integer
+        labelledReplies:
+          type: integer
+        holdoutReservedPosts:
+          type: integer
+        effortSeconds:
+          type: integer
+        budgetConsumedShare:
+          type: number
+          format: float
+        labellerIds:
+          type: array
+          items:
+            type: string
+    AnnotationBatchCreate:
+      type: object
+      required: [marketId, targetPosts]
+      properties:
+        marketId:
+          type: string
+        targetPosts:
+          type: integer
+        holdoutReservedPosts:
+          type: integer
+        labellerIds:
+          type: array
+          items:
+            type: string
+    PostLabel:
+      type: object
+      required: [postId, categoryKey, labellerId]
+      properties:
+        postId:
+          type: string
+        categoryKey:
+          type: string
+        labellerId:
+          type: string
+        confidence:
+          type: string
+          enum: [certain, probable, unsure]
+    ReplyLabel:
+      type: object
+      required: [replyId, replyType, labellerId]
+      properties:
+        replyId:
+          type: string
+        replyType:
+          type: string
+          enum: [buy, sell, endorsement, other]
+          description: Endorsement is held separate from transaction evidence
+        labellerId:
+          type: string
+    LabellerAgreement:
+      type: object
+      properties:
+        batchId:
+          type: string
+        pairwiseAgreement:
+          type: number
+          format: float
+        contestedCategories:
+          type: array
+          items:
+            type: object
+            properties:
+              categoryKey:
+                type: string
+              disagreementRate:
+                type: number
+                format: float
+        labellersBelowThreshold:
+          type: array
+          items:
+            type: string
+    ClassificationRun:
+      type: object
+      required: [id, marketId, completedAt]
+      properties:
+        id:
+          type: string
+        marketId:
+          type: string
+        taxonomyVersion:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+        postsClassified:
+          type: integer
+        repliesClassified:
+          type: integer
+        weightedProductPrecision:
+          type: number
+          format: float
+        weightedReplyPrecision:
+          type: number
+          format: float
+        perCategoryPrecision:
+          type: array
+          items:
+            type: object
+            properties:
+              categoryKey:
+                type: string
+              precision:
+                type: number
+                format: float
+        recallMeasurable:
+          type: boolean
+          default: false
+          description: Recall cannot be computed; coverage is reported as a floor
+    Transaction:
+      type: object
+      required: [id, marketId, sellerKey, buyerKey, categoryKey, occurredAt]
+      properties:
+        id:
+          type: string
+        marketId:
+          type: string
+        sellerKey:
+          type: string
+        buyerKey:
+          type: string
+        categoryKey:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        evidenceReplyId:
+          type: string
+    ChainCandidate:
+      type: object
+      required: [id, marketId, sourceCategory, destinationCategory, adjudicationStatus]
+      properties:
+        id:
+          type: string
+        marketId:
+          type: string
+        taxonomyVersion:
+          type: string
+        sourceCategory:
+          type: string
+        destinationCategory:
+          type: string
+        linkingActorKey:
+          type: string
+        purchaseTransactionId:
+          type: string
+        onwardSaleTransactionId:
+          type: string
+        attenuatedWeight:
+          type: number
+          format: float
+          description: One divided by the linking actor's total edge count
+        elapsedDaysBetweenLegs:
+          type: integer
+        adjudicationStatus:
+          type: string
+          enum: [pending, accepted, rejected, suppressed]
+        suppressionReason:
+          type: string
+          enum: [endorsement_reply, quote_artefact, duplicate_listing]
+        linkingActor:
+          $ref: "#/components/schemas/Actor"
+        purchase:
+          $ref: "#/components/schemas/Transaction"
+        onwardSale:
+          $ref: "#/components/schemas/Transaction"
+        sourcePost:
+          $ref: "#/components/schemas/Post"
+        buyEvidence:
+          $ref: "#/components/schemas/Reply"
+        onwardPost:
+          $ref: "#/components/schemas/Post"
+    ChainAdjudicationCreate:
+      type: object
+      required: [outcome]
+      properties:
+        outcome:
+          type: string
+          enum: [related, resell, unrelated, lack_of_product, lack_of_purchase]
+        rationale:
+          type: string
+        harmMetric:
+          type: string
+          description: Customer harm metric this chain terminates in, when applicable
+    ChainAdjudication:
+      type: object
+      required: [id, candidateId, outcome, adjudicatedBy, adjudicatedAt]
+      properties:
+        id:
+          type: string
+        candidateId:
+          type: string
+        outcome:
+          type: string
+          enum: [related, resell, unrelated, lack_of_product, lack_of_purchase]
+        rationale:
+          type: string
+        adjudicatedBy:
+          type: string
+        adjudicatedAt:
+          type: string
+          format: date-time
+        producedDependencyEdgeId:
+          type: string
+    DependencyEdge:
+      type: object
+      required: [id, marketId, sourceCategory, destinationCategory]
+      properties:
+        id:
+          type: string
+        marketId:
+          type: string
+        sourceCategory:
+          type: string
+        destinationCategory:
+          type: string
+        adjudicatedChainCount:
+          type: integer
+        attenuatedWeight:
+          type: number
+          format: float
+        firstObservedAt:
+          type: string
+          format: date-time
+        lastObservedAt:
+          type: string
+          format: date-time
+        notableAnnotation:
+          type: string
+          description: Analyst note, for example rare handle resale after a doxing purchase
+    DependencyMap:
+      type: object
+      properties:
+        marketId:
+          type: string
+        taxonomyVersion:
+          type: string
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/DependencyEdge"
+        hubCategories:
+          type: array
+          items:
+            type: string
+        coverageFloorShare:
+          type: number
+          format: float
+        coverageIsFloor:
+          type: boolean
+          default: true
+    HarmBaseline:
+      type: object
+      required: [harmMetric, value, windowStart, windowEnd]
+      properties:
+        harmMetric:
+          type: string
+        value:
+          type: number
+          format: double
+        unit:
+          type: string
+          example: accounts_per_month
+        windowStart:
+          type: string
+          format: date
+        windowEnd:
+          type: string
+          format: date
+        sourceSystem:
+          type: string
+    InterventionCandidate:
+      type: object
+      required: [id, marketId, controlChange, severedEdgeId]
+      properties:
+        id:
+          type: string
+        marketId:
+          type: string
+        severedEdgeId:
+          type: string
+        controlChange:
+          type: string
+          example: Remove mobile number as an account recovery factor
+        controlDomain:
+          type: string
+          enum: [authentication, account_recovery, rate_limiting, payment_channel, listing_policy, carrier_process]
+        severanceLeverage:
+          type: number
+          format: float
+        estimatedHarmSevered:
+          type: number
+          format: double
+        harmMetric:
+          type: string
+        implementationDifficulty:
+          type: string
+          enum: [low, medium, high]
+        supportingChainCount:
+          type: integer
+    Intervention:
+      type: object
+      required: [id, candidateId, status]
+      properties:
+        id:
+          type: string
+        candidateId:
+          type: string
+        status:
+          type: string
+          enum: [selected, declined, implemented, measured, failed]
+        declineReason:
+          type: string
+        ownerTeam:
+          type: string
+        changeRecordReference:
+          type: string
+        hypothesis:
+          type: string
+        baseline:
+          $ref: "#/components/schemas/HarmBaseline"
+        measurementDueAt:
+          type: string
+          format: date-time
+    InterventionCreate:
+      type: object
+      required: [candidateId, decision]
+      properties:
+        candidateId:
+          type: string
+        decision:
+          type: string
+          enum: [select, decline]
+        declineReason:
+          type: string
+        ownerTeam:
+          type: string
+        hypothesis:
+          type: string
+        measurementWindowDays:
+          type: integer
+          default: 90
+    OutcomeMeasurementCreate:
+      type: object
+      required: [harmMetric, value, windowStart, windowEnd]
+      properties:
+        harmMetric:
+          type: string
+        value:
+          type: number
+          format: double
+        windowStart:
+          type: string
+          format: date
+        windowEnd:
+          type: string
+          format: date
+        substitutionObserved:
+          type: boolean
+        notes:
+          type: string
+    OutcomeMeasurement:
+      type: object
+      required: [id, interventionId, harmMetric, value]
+      properties:
+        id:
+          type: string
+        interventionId:
+          type: string
+        harmMetric:
+          type: string
+        value:
+          type: number
+          format: double
+        baselineValue:
+          type: number
+          format: double
+        harmSevered:
+          type: number
+          format: double
+        movedTargetMetric:
+          type: boolean
+        substitutionObserved:
+          type: boolean
+          description: Whether the severed chain reappeared through a different supplier
+        measuredAt:
+          type: string
+          format: date-time
+    CoverageAssessment:
+      type: object
+      properties:
+        marketId:
+          type: string
+        assessedAt:
+          type: string
+          format: date-time
+        taxonomyVersion:
+          type: string
+        outOfTaxonomyShare:
+          type: number
+          format: float
+        emergingUnnamedThemes:
+          type: array
+          items:
+            type: string
+          description: Recurring out-of-taxonomy themes proposed as new categories
+        recallMeasurable:
+          type: boolean
+          default: false
+        coverageStatement:
+          type: string
+    DriftAssessment:
+      type: object
+      properties:
+        marketId:
+          type: string
+        assessedAt:
+          type: string
+          format: date-time
+        holdoutWindowStart:
+          type: string
+          format: date
+        holdoutWindowEnd:
+          type: string
+          format: date
+        holdoutF1:
+          type: number
+          format: float
+        thresholdF1:
+          type: number
+          format: float
+        breached:
+          type: boolean
+        daysSinceLastRelabelling:
+          type: integer
+        recommendedAction:
+          type: string
+          enum: [none, schedule_relabelling, relabel_now, hold_publication]
+    PublicationHold:
+      type: object
+      required: [id, marketId, cause, appliedAt]
+      properties:
+        id:
+          type: string
+        marketId:
+          type: string
+        cause:
+          type: string
+          enum: [drift_threshold_breached, taxonomy_coverage_breached, retention_expired, licence_lapsed]
+        appliedAt:
+          type: string
+          format: date-time
+        liftedAt:
+          type: string
+          format: date-time
+        detail:
+          type: string
+    CustodyEvent:
+      type: object
+      required: [at, actor, action]
+      properties:
+        at:
+          type: string
+          format: date-time
+        actor:
+          type: string
+        action:
+          type: string
+          enum: [sealed, accessed, transferred, disclosed]
+        recipient:
+          type: string
+    EvidencePackageCreate:
+      type: object
+      required: [chainAdjudicationIds, purpose]
+      properties:
+        chainAdjudicationIds:
+          type: array
+          items:
+            type: string
+        purpose:
+          type: string
+          enum: [law_enforcement_referral, internal_legal, regulator_disclosure]
+        recipient:
+          type: string
+    EvidencePackage:
+      type: object
+      required: [id, purpose, sealedAt, manifestHash]
+      properties:
+        id:
+          type: string
+        purpose:
+          type: string
+          enum: [law_enforcement_referral, internal_legal, regulator_disclosure]
+        sealedAt:
+          type: string
+          format: date-time
+        sealedBy:
+          type: string
+        manifestHash:
+          type: string
+        artefactHashes:
+          type: array
+          items:
+            type: object
+            properties:
+              artefactId:
+                type: string
+              artefactType:
+                type: string
+                enum: [post, reply, adjudication, dependency_edge]
+              hash:
+                type: string
+        custodyLog:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustodyEvent"
+    DataEnvelopeMarket:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/Market"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeCorpus:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/Corpus"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeTaxonomy:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/Taxonomy"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeTaxonomyVersion:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/TaxonomyVersion"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeAnnotationBatch:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/AnnotationBatch"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeLabellerAgreement:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/LabellerAgreement"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeChainCandidate:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/ChainCandidate"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeChainAdjudication:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/ChainAdjudication"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeDependencyMap:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/DependencyMap"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeIntervention:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/Intervention"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeOutcomeMeasurement:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/OutcomeMeasurement"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeCoverageAssessment:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/CoverageAssessment"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeDriftAssessment:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/DriftAssessment"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeEvidencePackage:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/EvidencePackage"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeMarket:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Market"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeCorpus:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Corpus"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeAnnotationBatch:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/AnnotationBatch"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeClassificationRun:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ClassificationRun"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeChainCandidate:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ChainCandidate"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeDependencyEdge:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/DependencyEdge"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeInterventionCandidate:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/InterventionCandidate"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeIntervention:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Intervention"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopePublicationHold:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/PublicationHold"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"

@@ -1,0 +1,233 @@
+openapi: 3.1.0
+info:
+  title: Markets schemas
+  version: 0.1.0
+  description: Monitored markets, licensed corpora, and source governance.
+paths: {}
+components:
+  schemas:
+    MarketId:
+      type: string
+      pattern: '^mkt_[0-9A-HJKMNP-TV-Z]{26}$'
+      description: Prefixed market id
+    CorpusId:
+      type: string
+      pattern: '^crp_[0-9A-HJKMNP-TV-Z]{26}$'
+      description: Prefixed corpus id
+
+    SourceLicence:
+      type: object
+      required: [lawfulBasis, licenceTerms]
+      properties:
+        lawfulBasis:
+          type: string
+          enum: [public_posting_scrape, commercial_agreement, research_agreement, law_enforcement_disclosure]
+        licenceTerms:
+          type: string
+        redistributionPermitted:
+          type: boolean
+        publicIndexingPermitted:
+          type: boolean
+          default: false
+
+    RetentionPolicy:
+      type: object
+      required: [rawRetentionDays]
+      properties:
+        rawRetentionDays:
+          type: integer
+          description: Retention for raw posts and replies
+        derivedRetentionDays:
+          type: integer
+          description: Retention for pseudonymised labels, adjudications, and edges
+        purgeOnExpiry:
+          type: boolean
+          default: true
+
+    Market:
+      type: object
+
+      x-dynamodb:
+        entityType: "MARKET"
+        pkPatternTemplate: "MARKET#${marketId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      required: [marketId, name, language, status, createdAt, updatedAt]
+      properties:
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        name:
+          type: string
+        language:
+          type: string
+          description: Primary forum language, used to route fluent labellers
+        status:
+          type: string
+          enum: [onboarding, labelling, active, held, exited]
+        onboardingLabelBudgetPosts:
+          type: integer
+          description: Committed labelling budget for this market
+          example: 8500
+        labelledPosts:
+          type: integer
+        annotationEffortSeconds:
+          type: integer
+        activeTaxonomyVersion:
+          type: string
+        publicationHeld:
+          type: boolean
+        firstAdjudicatedChainAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    MarketCreate:
+      type: object
+      required: [name, language, onboardingLabelBudgetPosts]
+      properties:
+        name:
+          type: string
+        language:
+          type: string
+        onboardingLabelBudgetPosts:
+          type: integer
+          minimum: 1000
+        driftThresholdF1:
+          type: number
+          format: float
+          description: Publication is held when holdout F1 falls below this value
+
+    Corpus:
+      type: object
+
+      x-dynamodb:
+        entityType: "CORPUS"
+        pkPatternTemplate: "CORPUS#${corpusId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+        gsi1PKPatternTemplate: "MARKET#${marketId}"
+        gsi1SKPatternTemplate: "CORPUS#${corpusId}"
+      required: [corpusId, marketId, status, createdAt, updatedAt]
+      properties:
+        corpusId:
+          $ref: '#/components/schemas/CorpusId'
+        marketId:
+          $ref: '#/components/schemas/MarketId'
+        status:
+          type: string
+          enum: [accepted, pseudonymising, available, expired, purged]
+        threadCount:
+          type: integer
+        replyCount:
+          type: integer
+        uniqueActorCount:
+          type: integer
+        coverageStart:
+          type: string
+          format: date
+        coverageEnd:
+          type: string
+          format: date
+        licence:
+          $ref: '#/components/schemas/SourceLicence'
+        retention:
+          $ref: '#/components/schemas/RetentionPolicy'
+        retentionExpiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CorpusIngest:
+      type: object
+      required: [licence, retention, payloadReference]
+      properties:
+        payloadReference:
+          type: string
+          description: Opaque handle to the licensed archive, never inline content
+        licence:
+          $ref: '#/components/schemas/SourceLicence'
+        retention:
+          $ref: '#/components/schemas/RetentionPolicy'
+        pseudonymiseActors:
+          type: boolean
+          default: true
+        coverageStart:
+          type: string
+          format: date
+        coverageEnd:
+          type: string
+          format: date
+
+    MarketListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Market'
+        nextCursor:
+          type: string
+
+    CorpusListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Corpus'
+        nextCursor:
+          type: string
+
+    MarketResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Market'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    MarketListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/MarketListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    CorpusResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Corpus'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    CorpusListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/CorpusListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

@@ -1,0 +1,242 @@
+openapi: 3.1.0
+info:
+  title: Markets API
+  version: 0.1.0
+  description: |
+    Monitored markets, licensed corpora, and source governance for Cutpoint.
+  x-domain: mkt
+  x-product-slug: 1812-00381v2
+servers:
+  - url: https://api.cutpoint.local
+security:
+  - apiKey: []
+tags:
+  - name: Markets
+    description: Monitored markets, licensed corpora, and source governance
+paths:
+  /v1/markets:
+    get:
+      operationId: listMarkets
+      tags: [Markets]
+      summary: List monitored markets
+
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: Market
+      x-dynamodb:
+        entityType: "MARKET"
+        pkPatternTemplate: "MARKET#${marketId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: language
+          in: query
+          schema:
+            type: string
+            example: ru
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [onboarding, labelling, active, held, exited]
+      responses:
+        '200':
+          description: Monitored markets page
+          content:
+            application/json:
+              schema:
+                $ref: ./markets.schemas.yaml#/components/schemas/MarketListResponse
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: registerMarket
+      tags: [Markets]
+      summary: Register a market with onboarding labelling budget
+
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: Market
+      x-dynamodb:
+        entityType: "MARKET"
+        pkPatternTemplate: "MARKET#${marketId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./markets.schemas.yaml#/components/schemas/MarketCreate
+      responses:
+        '201':
+          description: Market registered
+          content:
+            application/json:
+              schema:
+                $ref: ./markets.schemas.yaml#/components/schemas/MarketResponse
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '422':
+          $ref: ./common/responses.yaml#/components/responses/UnprocessableEntity
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/markets/{marketId}:
+    get:
+      operationId: getMarket
+      tags: [Markets]
+      summary: Get market with budget and publication state
+
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: Market
+      x-dynamodb:
+        entityType: "MARKET"
+        pkPatternTemplate: "MARKET#${marketId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            $ref: ./markets.schemas.yaml#/components/schemas/MarketId
+      responses:
+        '200':
+          description: Market
+          content:
+            application/json:
+              schema:
+                $ref: ./markets.schemas.yaml#/components/schemas/MarketResponse
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/markets/{marketId}/corpora:
+    get:
+      operationId: listCorpora
+      tags: [Markets]
+      summary: List corpora for a market
+
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      x-repository: Corpus
+      x-dynamodb:
+        entityType: "CORPUS"
+        pkPatternTemplate: "CORPUS#${corpusId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            $ref: ./markets.schemas.yaml#/components/schemas/MarketId
+
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Corpora page
+          content:
+            application/json:
+              schema:
+                $ref: ./markets.schemas.yaml#/components/schemas/CorpusListResponse
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: ingestCorpus
+      tags: [Markets]
+      summary: Ingest a licensed corpus
+      description: >
+        Ingest a licensed corpus. Rejected unless lawful basis, licence terms, and a
+        retention window are supplied, and unless pseudonymisation is requested.
+      security:
+        - apiKey: []
+      x-repository: Corpus
+      x-dynamodb:
+        entityType: "CORPUS"
+        pkPatternTemplate: "CORPUS#${corpusId}"
+        skPatternTemplate: "METADATA"
+        pkPattern: "entity"
+        createdAtField: "createdAt"
+        updatedAtField: "updatedAt"
+        softDeleteEnabled: false
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            $ref: ./markets.schemas.yaml#/components/schemas/MarketId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./markets.schemas.yaml#/components/schemas/CorpusIngest
+      responses:
+        '202':
+          description: Corpus accepted for pseudonymised intake
+          content:
+            application/json:
+              schema:
+                $ref: ./markets.schemas.yaml#/components/schemas/CorpusResponse
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '422':
+          $ref: ./common/responses.yaml#/components/responses/UnprocessableEntity
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth
